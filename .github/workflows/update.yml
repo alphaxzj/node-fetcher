@@ -1,0 +1,75 @@
+name: Update Mihomo Config
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+
+  workflow_dispatch:
+
+
+permissions:
+  contents: write
+
+
+jobs:
+
+  update:
+
+    runs-on: ubuntu-latest
+
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+
+    - name: Install python libs
+      run: |
+        pip install pyyaml
+
+
+    - name: Download wiki
+
+      run: |
+
+        curl -L \
+        "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+        -o source.md
+
+
+
+    - name: Extract nodes
+
+      run: |
+
+        grep -Eo \
+        '(vmess|vless|trojan|ss|hysteria|hysteria2|tuic|anytls)://[^ "<>]+' \
+        source.md \
+        | sort -u \
+        > nodes.txt
+
+
+
+    - name: Generate Mihomo yaml
+
+      run: |
+
+        python convert.py
+
+
+
+    - name: Commit
+
+      run: |
+
+        git config user.name github-actions
+        git config user.email actions@github.com
+
+        git add .
+
+        git commit \
+        -m "Auto update Mihomo nodes" \
+        || echo "No changes"
+
+        git push
