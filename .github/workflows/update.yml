@@ -20,9 +20,15 @@ jobs:
       # 下载 Wiki
       - name: Download Wiki
         run: |
-          curl -L \
-          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-          -o source.md
+              curl -L \
+              "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+              -o v2ray.md
+          
+              curl -L \
+              "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+              -o ss.md
+          
+              cat v2ray.md ss.md > source.md
 
       # 提取完整 URI
       - name: Extract Nodes
