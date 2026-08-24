@@ -54,7 +54,7 @@ jobs:
       # 生成更新时间
       - name: Generate info
         run: |
-          echo "更新时间: $(date '+%Y-%m-%d %H:%M:%S')" > update.txt
+          echo "更新时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > update.txt
           echo "节点数量: $(wc -l < nodes.txt)" >> update.txt
           
       # 保存更新
