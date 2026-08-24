@@ -69,7 +69,7 @@ jobs:
           nodes.txt \
           update.txt
           git commit \
-          -m "Auto update nodes $(date '+%Y-%m-%d %H:%M:%S')" \
+          -m "Auto update nodes $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" \
           || echo "No changes"
 
           git push
