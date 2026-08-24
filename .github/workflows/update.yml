@@ -48,14 +48,12 @@ jobs:
           | sort \
           | uniq -c
           echo
-          echo "示例节点:"
-          head -5 nodes.txt
 
       # 生成更新时间
       - name: Generate info
         run: |
-          echo "更新时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > update.txt
-          echo "节点数量: $(wc -l < nodes.txt)" >> update.txt
+          echo "更新时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')"
+          echo "节点数量: $(wc -l < nodes.txt)"
           
       # 保存更新
       - name: Commit changes
@@ -63,8 +61,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-          nodes.txt \
-          update.txt
+          nodes.txt 
           git commit \
           -m "Auto update nodes $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" \
           || echo "No changes"
