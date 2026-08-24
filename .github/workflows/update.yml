@@ -36,51 +36,7 @@ jobs:
           echo "节点数量："
           wc -l nodes.txt
 
-      # 下载 subconverter
-      - name: Download subconverter
-        run: |
-          wget -q \
-          https://github.com/tindy2013/subconverter/releases/latest/download/subconverter_linux64.tar.gz \
-          -O subconverter.tar.gz
-
-          tar -xzf subconverter.tar.gz
-
-          chmod +x subconverter/subconverter
-
-      # 启动 subconverter
-      - name: Start subconverter
-        run: |
-          nohup ./subconverter/subconverter > subconverter.log 2>&1 &
-          sleep 3
-
-      # 把 nodes.txt 转换成 Mihomo
-      - name: Convert to Mihomo
-        run: |
-
-          URL="file://$(realpath nodes.txt)"
-
-          curl -G \
-            "http://127.0.0.1:25500/sub" \
-            --data-urlencode "target=clash" \
-            --data-urlencode "url=$URL" \
-            --data-urlencode "insert=false" \
-            --data-urlencode "emoji=true" \
-            --data-urlencode "scv=true" \
-            --data-urlencode "fdn=false" \
-            -o config.yaml
-
-      # 检查转换结果
-      - name: Check config
-        run: |
-          echo "config.yaml："
-
-          head -50 config.yaml
-
-          echo
-          echo "Proxy 数量："
-
-          grep -c "server:" config.yaml || true
-
+  
       # 提交
       - name: Commit
         run: |
@@ -88,10 +44,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add source.md nodes.txt config.yaml
+          git add source.md nodes.txt
 
           git commit \
-            -m "Auto update Mihomo nodes" \
+            -m "Auto update nodes" \
             || echo "No changes"
 
           git push
