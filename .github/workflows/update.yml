@@ -1,329 +1,75 @@
 name: Update Nodes
 
 on:
-  # 每小时 15 分和 45 分运行
-  # GitHub Actions 使用 UTC
-  # 对北京时间来说，分钟不变，所以也是每小时 15、45 分
   schedule:
     - cron: "15,45 * * * *"
-
-  # GitHub Actions 页面手动运行
   workflow_dispatch:
-
-  # 修改 main 分支后运行
-  push:
-    branches:
-      - main
-
-
 permissions:
   contents: write
 
-
 jobs:
-
   update:
-
     runs-on: ubuntu-latest
-
-
     steps:
-
-      # ========================================
-      # 1. 拉取自己的仓库
-      # ========================================
-
+      # 拉取仓库
       - name: Checkout
         uses: actions/checkout@v4
 
-
-      # ========================================
-      # 2. 显示当前时间
-      # ========================================
-
-      - name: Check time
+      # 下载多个节点源
+      - name: Download sources
         run: |
-
-          echo "UTC时间:"
-          date -u '+%Y-%m-%d %H:%M:%S'
-
-          echo
-
-          echo "北京时间:"
-          TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S'
-
-
-      # ========================================
-      # 3. 下载 V2Ray 节点源
-      # ========================================
-
-      - name: Download V2Ray source
-        shell: bash
-        run: |
-
-          set -euo pipefail
-
-          echo "开始下载 V2Ray 节点源..."
-
-          curl -fL \
-            --retry 5 \
-            --retry-delay 5 \
-            --connect-timeout 20 \
-            --max-time 120 \
-            -A "Mozilla/5.0" \
-            "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-            -o v2ray.md
-
-
-          echo "V2Ray 源大小:"
-          wc -c v2ray.md
-
-
-          if [ ! -s v2ray.md ]; then
-            echo "ERROR: v2ray.md 是空文件"
-            exit 1
-          fi
-
-
-      # ========================================
-      # 4. 下载 SS 节点源
-      # ========================================
-
-      - name: Download SS source
-        shell: bash
-        run: |
-
-          set -euo pipefail
-
-          echo "开始下载 SS 节点源..."
-
-          curl -fL \
-            --retry 5 \
-            --retry-delay 5 \
-            --connect-timeout 20 \
-            --max-time 120 \
-            -A "Mozilla/5.0" \
-            "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-            -o ss.md
-
-
-          echo "SS 源大小:"
-          wc -c ss.md
-
-
-          if [ ! -s ss.md ]; then
-            echo "ERROR: ss.md 是空文件"
-            exit 1
-          fi
-
-
-      # ========================================
-      # 5. 合并节点源
-      # ========================================
-
-      - name: Merge sources
-        shell: bash
-        run: |
-
-          set -euo pipefail
-
+          curl -L \
+          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+          -o v2ray.md
+          curl -L \
+          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+          -o ss.md
           cat v2ray.md ss.md > source.md
 
-
-          echo "合并后的源文件大小:"
-          wc -c source.md
-
-
-      # ========================================
-      # 6. 提取节点
-      # ========================================
-
+      # 提取节点
       - name: Extract nodes
-        shell: bash
         run: |
-
-          set -euo pipefail
-
-          echo "开始提取节点..."
-
-
           grep -Eo \
-            '(vmess|vless|trojan|ss|ssr|hysteria|hysteria2|tuic|anytls)://[^[:space:]<>"'\'']+' \
-            source.md \
-            | sed 's/[<>]//g' \
-            | sort -u \
-            > nodes.new.txt || true
+          '(vmess|vless|trojan|ss|ssr|hysteria|hysteria2|tuic|anytls)://[^[:space:]<>"'\'']+' \
+          source.md \
+          | sed 's/[<>]//g' \
+          | sort -u \
+          > nodes.txt
 
-
-          COUNT=$(wc -l < nodes.new.txt)
-
-
-          echo
-          echo "提取到的节点数量:"
-          echo "$COUNT"
-
-
-          # ========================================
-          # 重要：
-          # 0 节点时停止，防止覆盖旧节点
-          # ========================================
-
-          if [ "$COUNT" -eq 0 ]; then
-
-            echo
-            echo "========================================"
-            echo "ERROR: 没有提取到任何节点"
-            echo "停止更新，保留旧节点"
-            echo "========================================"
-
-            exit 1
-
-          fi
-
-
-          # ========================================
-          # 节点数量过少保护
-          # ========================================
-
-          if [ "$COUNT" -lt 3 ]; then
-
-            echo
-            echo "WARNING: 当前只有 $COUNT 个节点"
-
-
-            if [ -f nodes.txt ]; then
-
-              OLD_COUNT=$(wc -l < nodes.txt)
-
-              echo "旧节点数量: $OLD_COUNT"
-
-
-              if [ "$OLD_COUNT" -gt "$COUNT" ]; then
-
-                echo "当前节点数量异常减少"
-
-                echo "停止更新，保留旧节点"
-
-                exit 1
-
-              fi
-
-            fi
-
-          fi
-
-
-          # 正式替换节点文件
-
-          mv nodes.new.txt nodes.txt
-
-
-      # ========================================
-      # 7. 节点统计
-      # ========================================
-
+      # 节点统计
       - name: Check nodes
-        shell: bash
         run: |
-
-          echo
-          echo "========================================"
-          echo "节点统计"
-          echo "========================================"
-
-
-          TOTAL=$(wc -l < nodes.txt)
-
-          echo "总节点数: $TOTAL"
-
-
+          echo "===================="
+          echo "节点数量:"
+          wc -l nodes.txt
           echo
           echo "协议统计:"
-
-
-          awk -F '://' '
-          NF >= 2 {
-            print $1
-          }
-          ' nodes.txt \
+          grep -oE '^[a-zA-Z0-9]+' nodes.txt \
           | sort \
-          | uniq -c \
-          | sort -nr
-
-
+          | uniq -c
           echo
-          echo "前 10 个节点:"
+          echo "示例节点:"
+          head -5 nodes.txt
 
-
-          head -10 nodes.txt
-
-
-      # ========================================
-      # 8. 生成更新时间
-      # ========================================
-
+      # 生成更新时间
       - name: Generate info
-        shell: bash
         run: |
-
-          BEIJING_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-
-          NODE_COUNT=$(wc -l < nodes.txt)
-
-
-          cat > update.txt <<EOF
-更新时间: $BEIJING_TIME
-节点数量: $NODE_COUNT
-更新时间时区: Asia/Shanghai
-EOF
-
-
-          echo "更新信息:"
-          cat update.txt
-
-
-      # ========================================
-      # 9. 提交更新
-      # ========================================
-
+          echo "更新时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > update.txt
+          echo "节点数量: $(wc -l < nodes.txt)" >> update.txt
+          
+      # 保存更新
       - name: Commit changes
-        shell: bash
         run: |
-
-          set -euo pipefail
-
-
           git config user.name "github-actions[bot]"
-
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-
           git add \
-            v2ray.md \
-            ss.md \
-            source.md \
-            nodes.txt \
-            update.txt
-
-
-          # 检查是否有变化
-
-          if git diff --cached --quiet; then
-
-            echo "没有内容变化"
-
-            echo "不需要提交"
-
-            exit 0
-
-          fi
-
-
-          BEIJING_TIME=$(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')
-
-
+          source.md \
+          v2ray.md \
+          ss.md \
+          nodes.txt \
+          update.txt
           git commit \
-            -m "Auto update nodes - $BEIJING_TIME"
-
+          -m "Auto update nodes $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" \
+          || echo "No changes"
 
           git push
