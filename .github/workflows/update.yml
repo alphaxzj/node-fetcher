@@ -1,75 +1,976 @@
 name: Update Nodes
 
+
 on:
+
+  # ==========================================
+  # 每小时 15 分、45 分运行
+  # GitHub Actions 使用 UTC
+  # 分钟字段不受时区影响
+  # ==========================================
+
   schedule:
     - cron: "15,45 * * * *"
+
+
+  # 手动运行
+
   workflow_dispatch:
+
+
+  # 修改 main 后运行
+
+  push:
+    branches:
+      - main
+
+
+
+# ==========================================
+# GitHub 权限
+# ==========================================
+
 permissions:
   contents: write
 
+
+
 jobs:
+
   update:
+
     runs-on: ubuntu-latest
+
+
     steps:
-      # 拉取仓库
+
+
+      # ========================================
+      # 1. Checkout
+      # ========================================
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 下载多个节点源
-      - name: Download sources
-        run: |
-          curl -L \
-          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-          -o v2ray.md
-          curl -L \
-          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-          -o ss.md
-          cat v2ray.md ss.md > source.md
 
-      # 提取节点
+
+      # ========================================
+      # 2. 显示时间
+      # ========================================
+
+      - name: Check time
+
+        shell: bash
+
+        run: |
+
+          echo "========================================"
+
+          echo "当前时间"
+
+          echo "========================================"
+
+
+          echo "UTC:"
+
+          date -u '+%Y-%m-%d %H:%M:%S'
+
+
+          echo
+
+
+          echo "北京时间:"
+
+          TZ='Asia/Shanghai' \
+          date '+%Y-%m-%d %H:%M:%S'
+
+
+
+      # ========================================
+      # 3. 下载 V2Ray 源
+      # ========================================
+
+      - name: Download V2Ray source
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          URL="https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md"
+
+
+          echo "下载 V2Ray 节点源..."
+
+
+          if curl \
+            -fL \
+            --retry 5 \
+            --retry-delay 5 \
+            --connect-timeout 20 \
+            --max-time 120 \
+            -A "Mozilla/5.0" \
+            "$URL" \
+            -o v2ray.md
+
+          then
+
+            echo "V2Ray 下载成功"
+
+          else
+
+            echo "V2Ray 下载失败"
+
+            rm -f v2ray.md
+
+          fi
+
+
+          if [ -s v2ray.md ]; then
+
+            echo "V2Ray 文件大小:"
+            wc -c v2ray.md
+
+          else
+
+            echo "V2Ray 源不可用"
+
+          fi
+
+
+
+      # ========================================
+      # 4. 下载 SS 源
+      # ========================================
+
+      - name: Download SS source
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          URL="https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md"
+
+
+          echo "下载 SS 节点源..."
+
+
+          if curl \
+            -fL \
+            --retry 5 \
+            --retry-delay 5 \
+            --connect-timeout 20 \
+            --max-time 120 \
+            -A "Mozilla/5.0" \
+            "$URL" \
+            -o ss.md
+
+          then
+
+            echo "SS 下载成功"
+
+          else
+
+            echo "SS 下载失败"
+
+            rm -f ss.md
+
+          fi
+
+
+          if [ -s ss.md ]; then
+
+            echo "SS 文件大小:"
+            wc -c ss.md
+
+          else
+
+            echo "SS 源不可用"
+
+          fi
+
+
+
+      # ========================================
+      # 5. 合并并提取节点
+      # ========================================
+
       - name: Extract nodes
+
+        shell: bash
+
         run: |
+
+          set -euo pipefail
+
+
+          echo "========================================"
+
+          echo "开始提取节点"
+
+          echo "========================================"
+
+
+          touch source.md
+
+
+          # 删除旧的 source
+
+          rm -f source.md
+
+
+          # V2Ray 源存在就加入
+
+          if [ -s v2ray.md ]; then
+
+            cat v2ray.md >> source.md
+
+            echo "已加入 V2Ray 源"
+
+          fi
+
+
+          # SS 源存在就加入
+
+          if [ -s ss.md ]; then
+
+            cat ss.md >> source.md
+
+            echo "已加入 SS 源"
+
+          fi
+
+
+          # ======================================
+          # 提取所有支持的 URI
+          # ======================================
+
           grep -Eo \
-          '(vmess|vless|trojan|ss|ssr|hysteria|hysteria2|tuic|anytls)://[^[:space:]<>"'\'']+' \
-          source.md \
-          | sed 's/[<>]//g' \
-          | sort -u \
-          > nodes.txt
+            '(vmess|vless|trojan|ss|ssr|hysteria2|hysteria|hy2|tuic|anytls)://[^[:space:]<>"'\'']+' \
+            source.md \
+            | sed 's/[<>]//g' \
+            | sort -u \
+            > nodes.new.txt \
+            || true
 
-      # 节点统计
-      - name: Check nodes
-        run: |
-          echo "===================="
-          echo "节点数量:"
-          wc -l nodes.txt
+
+          COUNT=$(wc -l < nodes.new.txt)
+
+
           echo
+
+          echo "提取节点数量: $COUNT"
+
+
+          # ======================================
+          # 0 节点保护
+          # ======================================
+
+          if [ "$COUNT" -eq 0 ]; then
+
+            echo
+
+            echo "========================================"
+
+            echo "ERROR: 没有提取到节点"
+
+            echo "停止更新"
+
+            echo "保留旧 nodes.txt / config.yaml"
+
+            echo "========================================"
+
+            exit 1
+
+          fi
+
+
+          # ======================================
+          # 节点数量异常下降保护
+          # ======================================
+
+          if [ -f nodes.txt ]; then
+
+            OLD_COUNT=$(wc -l < nodes.txt)
+
+
+            echo "旧节点数量: $OLD_COUNT"
+
+            echo "新节点数量: $COUNT"
+
+
+            # 如果新节点少于旧节点的 20%
+            # 认为源站可能异常
+
+            LIMIT=$((OLD_COUNT / 5))
+
+
+            if [ "$OLD_COUNT" -ge 20 ] && [ "$COUNT" -lt "$LIMIT" ]; then
+
+              echo
+
+              echo "========================================"
+
+              echo "ERROR: 节点数量异常下降"
+
+              echo "旧节点: $OLD_COUNT"
+
+              echo "新节点: $COUNT"
+
+              echo "停止更新"
+
+              echo "========================================"
+
+              exit 1
+
+            fi
+
+          fi
+
+
+          # ======================================
+          # 正式替换
+          # ======================================
+
+          mv nodes.new.txt nodes.txt
+
+
+          echo
+
+          echo "节点提取完成"
+
+
+
+      # ========================================
+      # 6. 节点协议统计
+      # ========================================
+
+      - name: Node statistics
+
+        shell: bash
+
+        run: |
+
+          echo "========================================"
+
+          echo "节点统计"
+
+          echo "========================================"
+
+
+          TOTAL=$(wc -l < nodes.txt)
+
+
+          echo "总节点数: $TOTAL"
+
+
+          echo
+
           echo "协议统计:"
-          grep -oE '^[a-zA-Z0-9]+' nodes.txt \
-          | sort \
-          | uniq -c
-          echo
-          echo "示例节点:"
-          head -5 nodes.txt
 
-      # 生成更新时间
+
+          awk -F '://' '
+
+          NF >= 2 {
+
+            print $1
+
+          }
+
+          ' nodes.txt \
+          | sort \
+          | uniq -c \
+          | sort -nr
+
+
+          echo
+
+          echo "前 10 个节点:"
+
+
+          head -10 nodes.txt
+
+
+
+      # ========================================
+      # 7. 下载 subconverter-ng
+      #
+      # 使用支持 Mihomo 新协议的转换器
+      # ========================================
+
+      - name: Download converter
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          echo "下载 subconverter-ng..."
+
+
+          # 获取最新 release API
+
+          API="https://api.github.com/repos/Jungley8/subconverter-ng/releases/latest"
+
+
+          DOWNLOAD_URL=$(
+            curl -fsSL "$API" \
+            | grep '"browser_download_url"' \
+            | grep 'linux' \
+            | grep 'amd64' \
+            | head -1 \
+            | cut -d '"' -f 4
+          )
+
+
+          if [ -z "$DOWNLOAD_URL" ]; then
+
+            echo "ERROR: 找不到 subconverter-ng Linux amd64"
+
+            exit 1
+
+          fi
+
+
+          echo "下载地址:"
+
+          echo "$DOWNLOAD_URL"
+
+
+          curl \
+            -fL \
+            --retry 5 \
+            "$DOWNLOAD_URL" \
+            -o converter.tar.gz
+
+
+          mkdir -p converter
+
+
+          tar \
+            -xzf converter.tar.gz \
+            -C converter
+
+
+          echo
+
+          echo "转换器文件:"
+
+          find converter -type f
+
+
+
+      # ========================================
+      # 8. 启动转换器
+      # ========================================
+
+      - name: Start converter
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          BINARY=$(find converter \
+            -type f \
+            -perm -111 \
+            | head -1)
+
+
+          if [ -z "$BINARY" ]; then
+
+            echo "ERROR: 找不到转换器"
+
+            exit 1
+
+          fi
+
+
+          echo "转换器: $BINARY"
+
+
+          chmod +x "$BINARY"
+
+
+          nohup "$BINARY" serve \
+            --listen :25500 \
+            > converter.log 2>&1 &
+
+
+          echo $! > converter.pid
+
+
+          echo "等待转换器启动..."
+
+
+          for i in {1..20}; do
+
+            if curl -fsS \
+              "http://127.0.0.1:25500/" \
+              >/dev/null 2>&1
+
+            then
+
+              echo "转换器启动成功"
+
+              break
+
+            fi
+
+
+            sleep 1
+
+          done
+
+
+          echo
+
+          echo "转换器日志:"
+
+          cat converter.log || true
+
+
+
+      # ========================================
+      # 9. 转换为 Mihomo config.yaml
+      # ========================================
+
+      - name: Convert to Mihomo
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          echo "========================================"
+
+          echo "生成 Mihomo config.yaml"
+
+          echo "========================================"
+
+
+          # 将本地文件转换成 file:// URL
+
+          NODE_FILE="$(realpath nodes.txt)"
+
+
+          echo "节点文件:"
+
+          echo "$NODE_FILE"
+
+
+          # URL 编码文件路径
+
+          ENCODED_URL=$(python3 -c \
+            'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' \
+            "file://$NODE_FILE"
+          )
+
+
+          # ======================================
+          # 先生成临时配置
+          # ======================================
+
+          curl \
+            -fL \
+            --retry 3 \
+            -G \
+            "http://127.0.0.1:25500/sub" \
+            --data-urlencode "target=clash" \
+            --data-urlencode "url=file://$NODE_FILE" \
+            --data-urlencode "dedup=true" \
+            --data-urlencode "sort=true" \
+            --data-urlencode "emoji=true" \
+            --data-urlencode "append_type=true" \
+            --data-urlencode "fdn=true" \
+            --data-urlencode "udp=true" \
+            --data-urlencode "tfo=false" \
+            --data-urlencode "scv=true" \
+            --data-urlencode "nocache=true" \
+            -o config.new.yaml
+
+
+          # ======================================
+          # 检查生成结果
+          # ======================================
+
+          if [ ! -s config.new.yaml ]; then
+
+            echo "ERROR: config.yaml 生成失败"
+
+            exit 1
+
+          fi
+
+
+          # 必须包含 proxies
+
+          if ! grep -q '^proxies:' config.new.yaml; then
+
+            echo "ERROR: 生成的 YAML 没有 proxies"
+
+            echo
+
+            head -100 config.new.yaml
+
+            exit 1
+
+          fi
+
+
+          PROXY_COUNT=$(grep -c '^[[:space:]]*-[[:space:]]*name:' config.new.yaml || true)
+
+
+          echo
+
+          echo "转换后的节点数量: $PROXY_COUNT"
+
+
+          if [ "$PROXY_COUNT" -eq 0 ]; then
+
+            echo "ERROR: 转换后节点数量为 0"
+
+            exit 1
+
+          fi
+
+
+          # ======================================
+          # 添加基础 Mihomo 配置
+          # ======================================
+
+          cat > mihomo-header.yaml <<'EOF'
+
+mixed-port: 7890
+
+allow-lan: true
+
+mode: rule
+
+log-level: info
+
+ipv6: true
+
+unified-delay: true
+
+tcp-concurrent: true
+
+find-process-mode: off
+
+profile:
+
+  store-selected: true
+
+  store-fake-ip: true
+
+EOF
+
+
+          # ======================================
+          # 合并配置
+          # ======================================
+
+          cat mihomo-header.yaml config.new.yaml \
+            > config.final.yaml
+
+
+          # ======================================
+          # 添加自动选择组
+          #
+          # 从 proxies 自动生成 proxy-groups
+          # ======================================
+
+          python3 <<'PY'
+
+from pathlib import Path
+
+import re
+
+
+p = Path("config.final.yaml")
+
+text = p.read_text(encoding="utf-8")
+
+
+names = []
+
+for line in text.splitlines():
+
+    m = re.match(r'^\s*-\s*name:\s*(.+)$', line)
+
+    if m:
+
+        name = m.group(1).strip()
+
+        if name:
+
+            names.append(name)
+
+
+# 去重
+
+names = list(dict.fromkeys(names))
+
+
+if not names:
+
+    raise SystemExit("没有找到节点")
+
+
+# YAML 引号转义
+
+def quote(s):
+
+    return "'" + s.replace("'", "''") + "'"
+
+
+groups = []
+
+groups.append("")
+
+groups.append("proxy-groups:")
+
+groups.append("  - name: 自动选择")
+
+groups.append("    type: url-test")
+
+groups.append("    url: http://www.gstatic.com/generate_204")
+
+groups.append("    interval: 300")
+
+groups.append("    tolerance: 50")
+
+groups.append("    lazy: false")
+
+groups.append("    proxies:")
+
+
+for name in names:
+
+    groups.append("      - " + quote(name))
+
+
+groups.append("")
+
+groups.append("  - name: 节点选择")
+
+groups.append("    type: select")
+
+groups.append("    proxies:")
+
+groups.append("      - 自动选择")
+
+
+for name in names:
+
+    groups.append("      - " + quote(name))
+
+
+groups.append("")
+
+groups.append("rules:")
+
+groups.append("  - MATCH,节点选择")
+
+
+p.write_text(
+
+    text.rstrip()
+
+    + "\n"
+
+    + "\n".join(groups)
+
+    + "\n",
+
+    encoding="utf-8"
+
+)
+
+
+print("生成代理组:", len(names))
+
+PY
+
+
+          mv config.final.yaml config.new.yaml
+
+
+          # ======================================
+          # 最终文件
+          # ======================================
+
+          mv config.new.yaml config.yaml
+
+
+          echo
+
+          echo "========================================"
+
+          echo "config.yaml 生成成功"
+
+          echo "========================================"
+
+
+          grep -E \
+            '^(mixed-port|allow-lan|mode|proxy-groups|rules):' \
+            config.yaml \
+            | head -20
+
+
+
+      # ========================================
+      # 10. 验证 YAML
+      # ========================================
+
+      - name: Validate config
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+
+          echo "验证 YAML..."
+
+
+          python3 -m pip install --quiet pyyaml
+
+
+          python3 <<'PY'
+
+import yaml
+
+with open("config.yaml", "r", encoding="utf-8") as f:
+
+    data = yaml.safe_load(f)
+
+
+if not isinstance(data, dict):
+
+    raise SystemExit("config.yaml 不是有效 YAML")
+
+
+if "proxies" not in data:
+
+    raise SystemExit("缺少 proxies")
+
+
+if not data["proxies"]:
+
+    raise SystemExit("proxies 为空")
+
+
+print("YAML 验证成功")
+
+print("节点数量:", len(data["proxies"]))
+
+PY
+
+
+
+      # ========================================
+      # 11. 生成更新时间
+      # ========================================
+
       - name: Generate info
+
+        shell: bash
+
         run: |
-          echo "更新时间: $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" > update.txt
-          echo "节点数量: $(wc -l < nodes.txt)" >> update.txt
-          
-      # 保存更新
+
+          BEIJING_TIME=$(TZ='Asia/Shanghai' \
+            date '+%Y-%m-%d %H:%M:%S')
+
+
+          NODE_COUNT=$(wc -l < nodes.txt)
+
+
+          PROXY_COUNT=$(grep -c \
+            '^[[:space:]]*-[[:space:]]*name:' \
+            config.yaml \
+            || true)
+
+
+          cat > update.txt <<EOF
+
+更新时间: $BEIJING_TIME
+
+更新时间时区: Asia/Shanghai
+
+原始节点数量: $NODE_COUNT
+
+Mihomo 节点数量: $PROXY_COUNT
+
+EOF
+
+
+          cat update.txt
+
+
+
+      # ========================================
+      # 12. 提交 GitHub
+      # ========================================
+
       - name: Commit changes
+
+        shell: bash
+
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          set -euo pipefail
+
+
+          git config \
+            user.name \
+            "github-actions[bot]"
+
+
+          git config \
+            user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+
           git add \
-          source.md \
-          v2ray.md \
-          ss.md \
-          nodes.txt \
-          update.txt
+            nodes.txt \
+            config.yaml \
+            update.txt \
+            v2ray.md \
+            ss.md
+
+
+          # 没变化就不提交
+
+          if git diff --cached --quiet; then
+
+            echo "没有内容变化"
+
+            echo "不需要提交"
+
+            exit 0
+
+          fi
+
+
+          BEIJING_TIME=$(TZ='Asia/Shanghai' \
+            date '+%Y-%m-%d %H:%M:%S')
+
+
           git commit \
-          -m "Auto update nodes $(TZ='Asia/Shanghai' date '+%Y-%m-%d %H:%M:%S')" \
-          || echo "No changes"
+            -m "Auto update nodes - $BEIJING_TIME"
+
 
           git push
