@@ -1,59 +1,75 @@
-name: Update Config
+name: Update Nodes
 
 on:
   schedule:
     - cron: "15,45 * * * *"
-
   workflow_dispatch:
-
 permissions:
   contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
+      # 拉取仓库
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 下载 Wiki
-      - name: Download Wiki
+      # 下载多个节点源
+      - name: Download sources
         run: |
-              curl -L \
-              "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-              -o v2ray.md
-          
-              curl -L \
-              "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
-              -o ss.md
-          
-              cat v2ray.md ss.md > source.md
+          curl -L \
+          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/v2ray%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+          -o v2ray.md
+          curl -L \
+          "https://raw.githubusercontent.com/wiki/Alvin9999-newpac/fanqiang/ss%E5%85%8D%E8%B4%B9%E8%B4%A6%E5%8F%B7.md" \
+          -o ss.md
+          cat v2ray.md ss.md > source.md
 
-      # 提取完整 URI
-      - name: Extract Nodes
+      # 提取节点
+      - name: Extract nodes
         run: |
           grep -Eo \
           '(vmess|vless|trojan|ss|ssr|hysteria|hysteria2|tuic|anytls)://[^[:space:]<>"'\'']+' \
           source.md \
+          | sed 's/[<>]//g' \
           | sort -u \
           > nodes.txt
 
-          echo "节点数量："
-          wc -l nodes.txt
-
-  
-      # 提交
-      - name: Commit
+      # 节点统计
+      - name: Check nodes
         run: |
+          echo "===================="
+          echo "节点数量:"
+          wc -l nodes.txt
+          echo
+          echo "协议统计:"
+          grep -oE '^[a-zA-Z0-9]+' nodes.txt \
+          | sort \
+          | uniq -c
+          echo
+          echo "示例节点:"
+          head -5 nodes.txt
 
+      # 生成更新时间
+      - name: Generate info
+        run: |
+          echo "更新时间: $(date '+%Y-%m-%d %H:%M:%S')" > update.txt
+          echo "节点数量: $(wc -l < nodes.txt)" >> update.txt
+          
+      # 保存更新
+      - name: Commit changes
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add source.md nodes.txt
-
+          git add \
+          source.md \
+          v2ray.md \
+          ss.md \
+          nodes.txt \
+          update.txt
           git commit \
-            -m "Auto update nodes" \
-            || echo "No changes"
+          -m "Auto update nodes $(date '+%Y-%m-%d %H:%M:%S')" \
+          || echo "No changes"
 
           git push
